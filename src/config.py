@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     DB_PASS: str = ""
     DB_NAME: str = ""
 
+    RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
+    CART_SERVICE_URL: str = "http://localhost:8002"
+    PRODUCT_SERVICE_URL: str = "http://localhost:8001"
+
+    ORDER_PAYMENT_TIMEOUT_MS: int = 900_000
+
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     @property
