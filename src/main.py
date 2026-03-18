@@ -3,13 +3,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from fastapi.responses import JSONResponse
+import httpx
 
 from src.config import settings
 from src.logger import setup_logging, get_logger
 from src.messaging.broker import broker
 from src.middleware.request_logger import RequestLoggingMiddleware
-from src.api.routes.orders import router as orders_router
+from src.services.cart_client import CartClient
+from src.services.product_client import ProductClient
+from src.api.v1.orders import router as orders_router
 from src.exceptions import (
     EmptyCartException,
     OrderConflictException,
@@ -26,7 +29,15 @@ async def lifespan(app: FastAPI):
     await broker.connect()
     await broker.start()
     logger.info("rabbitmq_broker_started")
+
+    # Инициализация HTTP клиента для Connection Pooling
+    http_client = httpx.AsyncClient(timeout=httpx.Timeout(timeout=10.0, connect=5.0))
+    app.state.cart_client = CartClient(http_client)
+    app.state.product_client = ProductClient(http_client)
+
     yield
+
+    await http_client.aclose()
     await broker.close()
     logger.info("rabbitmq_broker_closed")
 

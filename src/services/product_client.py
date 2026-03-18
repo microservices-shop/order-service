@@ -14,7 +14,6 @@ from src.schemas.internal import (
 
 logger = structlog.get_logger(__name__)
 
-_TIMEOUT = httpx.Timeout(timeout=10.0, connect=5.0)
 
 _MAX_RETRIES = 3
 _RETRY_BACKOFF_BASE = 0.5  # секунды: 0.5 -> 1.0 -> 2.0
@@ -23,8 +22,9 @@ _RETRY_BACKOFF_BASE = 0.5  # секунды: 0.5 -> 1.0 -> 2.0
 class ProductClient:
     """Клиент для запросов к internal API Product Service."""
 
-    def __init__(self) -> None:
+    def __init__(self, client: httpx.AsyncClient) -> None:
         self._base_url = settings.PRODUCT_SERVICE_URL.rstrip("/")
+        self.client = client
 
     async def reserve(
         self, order_id: uuid.UUID, items: list[ProductReserveItemRequestSchema]
@@ -43,8 +43,7 @@ class ProductClient:
 
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                    response = await client.post(url, json=payload)
+                response = await self.client.post(url, json=payload)
 
                 if response.status_code == httpx.codes.BAD_REQUEST:
                     # детерминированная ошибка 400

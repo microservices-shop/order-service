@@ -10,7 +10,6 @@ from src.schemas.internal import CartItemSelectedResponseSchema
 
 logger = structlog.get_logger(__name__)
 
-_TIMEOUT = httpx.Timeout(timeout=10.0, connect=5.0)
 
 _MAX_RETRIES = 3
 _RETRY_BACKOFF_BASE = 0.5  # секунды: 0.5 -> 1.0 -> 2.0
@@ -19,8 +18,9 @@ _RETRY_BACKOFF_BASE = 0.5  # секунды: 0.5 -> 1.0 -> 2.0
 class CartClient:
     """Клиент для запросов к internal API Cart Service."""
 
-    def __init__(self) -> None:
+    def __init__(self, client: httpx.AsyncClient) -> None:
         self._base_url = settings.CART_SERVICE_URL.rstrip("/")
+        self.client = client
 
     async def get_selected_items(
         self, user_id: uuid.UUID
@@ -36,8 +36,7 @@ class CartClient:
 
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                    response = await client.get(url, headers=headers)
+                response = await self.client.get(url, headers=headers)
 
                 response.raise_for_status()
                 return [
