@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.database import Base
 
 
-class OrderStatus(enum.Enum):
+class OrderStatus(str, enum.Enum):
     reserving = "reserving"
     awaiting_payment = "awaiting_payment"
     completed = "completed"

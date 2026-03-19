@@ -38,14 +38,25 @@ def get_user_id(x_user_id: str | None = Header(None)) -> uuid.UUID:
 
 def get_idempotency_key(
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-) -> str:
-    """Извлекает ключ идемпотентности из заголовка Idempotency-Key."""
+) -> uuid.UUID:
+    """Извлекает ключ идемпотентности из заголовка Idempotency-Key.
+
+    Raises:
+        HTTPException: 400, если заголовок отсутствует или невалидный UUID.
+    """
     if not idempotency_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Idempotency-Key header is required",
         )
-    return idempotency_key
+
+    try:
+        return uuid.UUID(idempotency_key)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Idempotency-Key header must be a valid UUID",
+        )
 
 
 def get_cart_client(request: Request) -> CartClient:
@@ -71,5 +82,5 @@ def get_order_service(
 
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 UserIdDep = Annotated[uuid.UUID, Depends(get_user_id)]
-IdempotencyKeyDep = Annotated[str, Depends(get_idempotency_key)]
+IdempotencyKeyDep = Annotated[uuid.UUID, Depends(get_idempotency_key)]
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]

@@ -1,12 +1,16 @@
 """Публикация сообщений в RabbitMQ."""
 
+import asyncio
 import uuid
 
 from src.logger import get_logger
-from src.messaging.broker import broker, payment_wait_queue, timeout_exchange
+from src.messaging.broker import broker, payment_wait_queue
 from src.messaging.schemas import PaymentWaitMessageSchema
 
 logger = get_logger(__name__)
+
+_MAX_RETRIES = 3
+_RETRY_BACKOFF_BASE = 0.5
 
 
 async def publish_payment_wait(order_id: uuid.UUID) -> None:
@@ -17,11 +21,24 @@ async def publish_payment_wait(order_id: uuid.UUID) -> None:
     """
     message = PaymentWaitMessageSchema(order_id=order_id)
 
-    await broker.publish(
-        message=message,
-        queue=payment_wait_queue,
-        exchange=timeout_exchange,
-    )
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            await broker.publish(
+                message=message,
+                queue=payment_wait_queue,
+            )
+            break
+        except Exception as exc:
+            if attempt == _MAX_RETRIES:
+                raise
+            logger.warning(
+                "rabbitmq_publish_retry",
+                order_id=str(order_id),
+                attempt=attempt,
+                max_retries=_MAX_RETRIES,
+                error=str(exc),
+            )
+            await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
 
     logger.info(
         "payment_wait_published",

@@ -13,7 +13,7 @@ timeout_exchange = RabbitExchange(
     type=ExchangeType.DIRECT,
 )
 
-# Очередь-таймер: сообщение «лежит» 15 мин, затем через DLX уходит в order.timeout.check
+# Очередь-таймер: сообщение лежит 15 мин, затем через DLX уходит в order.timeout.check
 payment_wait_queue = RabbitQueue(
     "order.payment.wait",
     durable=True,
@@ -24,8 +24,9 @@ payment_wait_queue = RabbitQueue(
     },
 )
 
-# Очередь для обработки таймаутов
+# Очередь для обработки таймаутов, привязанная к DLX по routing_key
 timeout_check_queue = RabbitQueue(
     "order.timeout.check",
     durable=True,
+    routing_key="order.timeout.check",
 )

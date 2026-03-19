@@ -36,3 +36,12 @@ class ProductReserveResponseSchema(BaseModel):
     quantity: int = Field(..., description="Зарезервированное количество")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrderItemSnapshotSchema(BaseModel):
+    """Внутренняя схема для сохранения снапшота товара в БД."""
+
+    product_id: int = Field(..., description="ID товара")
+    product_name: str = Field(..., description="Название товара")
+    unit_price: int = Field(..., description="Цена за ед. товара")
+    quantity: int = Field(..., description="Количество")

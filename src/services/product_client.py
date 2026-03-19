@@ -46,7 +46,7 @@ class ProductClient:
                 response = await self.client.post(url, json=payload)
 
                 if response.status_code == httpx.codes.BAD_REQUEST:
-                    # детерминированная ошибка 400
+                    # Товара нет в наличии, ошибка 400
                     raise OutOfStockException()
 
                 response.raise_for_status()
@@ -58,7 +58,7 @@ class ProductClient:
             except OutOfStockException:
                 raise
 
-            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            except httpx.RequestError as exc:
                 last_exc = exc
                 logger.warning(
                     "product_service_unavailable_retry",

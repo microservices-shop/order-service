@@ -8,7 +8,8 @@ import httpx
 
 from src.config import settings
 from src.logger import setup_logging, get_logger
-from src.messaging.broker import broker
+from src.messaging.broker import broker, payment_wait_queue
+from src.messaging.consumers import router as messaging_router
 from src.middleware.request_logger import RequestLoggingMiddleware
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
@@ -18,6 +19,7 @@ from src.exceptions import (
     OrderConflictException,
     OrderNotFoundException,
     OutOfStockException,
+    OrderServiceException,
 )
 
 setup_logging()
@@ -28,10 +30,17 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     await broker.connect()
     await broker.start()
-    logger.info("rabbitmq_broker_started")
 
-    # Инициализация HTTP клиента для Connection Pooling
-    http_client = httpx.AsyncClient(timeout=httpx.Timeout(timeout=10.0, connect=5.0))
+    # Очередь order.payment.wait не имеет consumers,
+    # поэтому объявляем её руками (она настроена на DLX)
+    await broker.declare_queue(payment_wait_queue)
+
+    # Явно создаём транспорт без прокси.
+    transport = httpx.AsyncHTTPTransport(retries=1)
+    http_client = httpx.AsyncClient(
+        transport=transport,
+        timeout=httpx.Timeout(timeout=10.0, connect=5.0),
+    )
     app.state.cart_client = CartClient(http_client)
     app.state.product_client = ProductClient(http_client)
 
@@ -50,6 +59,7 @@ app = FastAPI(
 )
 
 app.include_router(orders_router)
+broker.include_router(messaging_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -95,6 +105,15 @@ async def order_conflict_handler(request: Request, exc: OrderConflictException):
 async def order_not_found_handler(request: Request, exc: OrderNotFoundException):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": exc.detail},
+    )
+
+
+@app.exception_handler(OrderServiceException)
+async def order_service_exception_handler(request: Request, exc: OrderServiceException):
+    logger.error("order_service_business_error", detail=exc.detail)
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": exc.detail},
     )
 

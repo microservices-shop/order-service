@@ -44,14 +44,15 @@ class CartClient:
                     for item in response.json()
                 ]
 
-            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            except httpx.RequestError as exc:
                 last_exc = exc
                 logger.warning(
                     "cart_service_unavailable_retry",
                     user_id=str(user_id),
                     attempt=attempt,
                     max_retries=_MAX_RETRIES,
-                    error=str(exc),
+                    error=repr(exc),
+                    exc_info=True,
                 )
                 if attempt < _MAX_RETRIES:
                     await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
@@ -71,8 +72,9 @@ class CartClient:
             "cart_service_unavailable",
             user_id=str(user_id),
             attempts=_MAX_RETRIES,
-            error=str(last_exc),
+            error=repr(last_exc),
+            exc_info=True,
         )
         raise OrderServiceException(
-            f"Cart Service is temporarily unavailable: {last_exc}"
+            f"Cart Service is temporarily unavailable: {repr(last_exc)}"
         )
