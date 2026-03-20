@@ -30,3 +30,9 @@ timeout_check_queue = RabbitQueue(
     durable=True,
     routing_key="order.timeout.check",
 )
+
+# Очередь для удаления купленных товаров из корзины (слушает Cart Service)
+cart_items_remove_queue = RabbitQueue(
+    "cart.items.remove",
+    durable=True,
+)

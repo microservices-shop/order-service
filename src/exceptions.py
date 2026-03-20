@@ -31,3 +31,9 @@ class OrderNotFoundException(OrderServiceException):
     """Заказ не найден или принадлежит другому пользователю."""
 
     detail = "Order not found"
+
+
+class InvalidOrderStatusException(OrderServiceException):
+    """Статус заказа не соответствует запрашиваемому действию."""
+
+    detail = "The current order status does not allow this operation"

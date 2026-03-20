@@ -8,6 +8,8 @@ from src.exceptions import (
     OrderConflictException,
     EmptyCartException,
     OutOfStockException,
+    OrderNotFoundException,
+    InvalidOrderStatusException,
 )
 from src.repositories.order import OrderRepository
 from src.schemas.internal import (
@@ -16,10 +18,11 @@ from src.schemas.internal import (
     CartItemSelectedResponseSchema,
     ProductReserveResponseSchema,
 )
-from src.schemas.orders import CheckoutResponseSchema
+from src.schemas.orders import CheckoutResponseSchema, PayResponseSchema
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
-from src.messaging.publisher import publish_payment_wait
+from src.messaging.publisher import publish_payment_wait, publish_cart_items_remove
+from src.messaging.schemas import CartItemRemoveSchema
 
 
 logger = structlog.get_logger(__name__)
@@ -36,6 +39,8 @@ class OrderService:
         self.repo = OrderRepository(session)
         self.cart_client = cart_client
         self.product_client = product_client
+
+    # --- ПУБЛИЧНЫЕ МЕТОДЫ ---
 
     async def checkout(
         self, user_id: uuid.UUID, idempotency_key: uuid.UUID
@@ -65,8 +70,8 @@ class OrderService:
         # Публикуем заказ в очередь RabbitMQ order.payment.wait
         try:
             await publish_payment_wait(order_id=order.id)
-        except Exception as exc:
-            logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(exc))
+        except Exception as e:
+            logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(e))
             # НЕ выбрасываем ошибку дальше. Заказ уже сохранен в БД
             # Пользователь сможет его оплатить
             # TODO: Реализовать паттерн Transactional Outbox для надежной доставки сообщений в RabbitMQ
@@ -76,6 +81,40 @@ class OrderService:
             status=OrderStatus.awaiting_payment,
             total_price=total_price,
         )
+
+    async def pay(self, user_id: uuid.UUID, order_id: uuid.UUID) -> PayResponseSchema:
+        order = await self.repo.get_by_user_id_and_order_id(
+            user_id=user_id, order_id=order_id
+        )
+        if not order:
+            raise OrderNotFoundException()
+        if order.status == OrderStatus.reserving:
+            raise OrderConflictException("Order creation is in progress")
+        if order.status == OrderStatus.completed:
+            return PayResponseSchema(status=OrderStatus.completed)
+        if order.status not in (OrderStatus.awaiting_payment, OrderStatus.reserving):
+            raise InvalidOrderStatusException(
+                f"Cannot pay order in status {order.status.value}"
+            )
+
+        # Фиктивная оплата
+        await self.repo.update(order_id=order_id, status=OrderStatus.completed)
+        await self.session.commit()
+
+        items_for_removal = [
+            CartItemRemoveSchema(product_id=item.product_id) for item in order.items
+        ]
+
+        try:
+            await publish_cart_items_remove(
+                order_id=order_id, user_id=user_id, items=items_for_removal
+            )
+        except Exception as e:
+            logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(e))
+
+        return PayResponseSchema(status=OrderStatus.completed)
+
+    # --- ПРИВАТНЫЕ МЕТОДЫ ДЛЯ CHECKOUT ---
 
     async def _create_order(
         self, user_id: uuid.UUID, idempotency_key: uuid.UUID

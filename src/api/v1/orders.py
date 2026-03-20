@@ -1,9 +1,11 @@
+import uuid
+
 from fastapi import APIRouter, status
 
 from src.api.dependencies import UserIdDep, IdempotencyKeyDep, OrderServiceDep
-from src.schemas.orders import CheckoutResponseSchema
+from src.schemas.orders import CheckoutResponseSchema, PayResponseSchema
 
-router = APIRouter(prefix="/api/v1/orders")
+router = APIRouter(prefix="/orders")
 
 
 @router.post(
@@ -33,3 +35,26 @@ async def checkout(
     - 201 Created, если первый заказ уже создан (или создан в этом запросе).
     """
     return await service.checkout(user_id, idempotency_key)
+
+
+@router.post(
+    "/{order_id}/pay",
+    response_model=PayResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Оплатить заказ",
+    description="Переводит заказ в статус 'completed' и очищает корзину пользователя.",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Заказ не найден"},
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Некорректный статус заказа для оплаты (отменен или уже оплачен)"
+        },
+        status.HTTP_409_CONFLICT: {"description": "Заказ еще в процессе создания"},
+    },
+)
+async def pay(
+    user_id: UserIdDep,
+    order_id: uuid.UUID,
+    service: OrderServiceDep,
+) -> PayResponseSchema:
+    """Оплата заказа и очистка корзины."""
+    return await service.pay(user_id=user_id, order_id=order_id)

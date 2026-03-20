@@ -13,13 +13,14 @@ from src.messaging.consumers import router as messaging_router
 from src.middleware.request_logger import RequestLoggingMiddleware
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
-from src.api.v1.orders import router as orders_router
+from src.api.v1.router import router as v1_router
 from src.exceptions import (
     EmptyCartException,
     OrderConflictException,
     OrderNotFoundException,
     OutOfStockException,
     OrderServiceException,
+    InvalidOrderStatusException,
 )
 
 setup_logging()
@@ -58,7 +59,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(orders_router)
+app.include_router(v1_router)
 broker.include_router(messaging_router)
 
 app.add_middleware(
@@ -105,6 +106,16 @@ async def order_conflict_handler(request: Request, exc: OrderConflictException):
 async def order_not_found_handler(request: Request, exc: OrderNotFoundException):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": exc.detail},
+    )
+
+
+@app.exception_handler(InvalidOrderStatusException)
+async def invalid_order_status_handler(
+    request: Request, exc: InvalidOrderStatusException
+):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": exc.detail},
     )
 

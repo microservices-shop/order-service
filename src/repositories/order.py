@@ -57,3 +57,14 @@ class OrderRepository:
             self.session.add(order_item)
 
         await self.session.flush()
+
+    async def get_by_user_id_and_order_id(
+        self, user_id: uuid.UUID, order_id: uuid.UUID
+    ) -> OrderModel | None:
+        query = (
+            select(OrderModel)
+            .where(OrderModel.user_id == user_id, OrderModel.id == order_id)
+            .options(selectinload(OrderModel.items))
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
