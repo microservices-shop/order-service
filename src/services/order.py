@@ -21,7 +21,11 @@ from src.schemas.internal import (
 from src.schemas.orders import CheckoutResponseSchema, PayResponseSchema
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
-from src.messaging.publisher import publish_payment_wait, publish_cart_items_remove
+from src.messaging.publisher import (
+    publish_payment_wait,
+    publish_cart_items_remove,
+    publish_reserve_release,
+)
 from src.messaging.schemas import CartItemRemoveSchema
 
 
@@ -32,8 +36,8 @@ class OrderService:
     def __init__(
         self,
         session: AsyncSession,
-        cart_client: CartClient,
-        product_client: ProductClient,
+        cart_client: CartClient | None = None,
+        product_client: ProductClient | None = None,
     ) -> None:
         self.session = session
         self.repo = OrderRepository(session)
@@ -113,6 +117,36 @@ class OrderService:
             logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(e))
 
         return PayResponseSchema(status=OrderStatus.completed)
+
+    async def process_timeout(self, order_id: uuid.UUID) -> None:
+        """Обработка таймаута неоплаченного заказа.
+        Вызывается RabbitMQ Consumer-ом при получении сообщения из order.timeout.check.
+        """
+        order = await self.repo.get_by_id(order_id=order_id)
+        if not order:
+            logger.warning("timeout_order_not_found", order_id=str(order_id))
+            return
+
+        # Если заказ уже оплачен, то таймаут игнорируется (возвращается ACK)
+        if order.status == OrderStatus.completed:
+            logger.info("timeout_ignored_already_completed", order_id=str(order_id))
+            return
+
+        # Если заказ еще не оплачен (или висит в статусе reserving), отменяем
+        if order.status in (OrderStatus.awaiting_payment, OrderStatus.reserving):
+            await self.repo.update(
+                order_id=order_id, status=OrderStatus.cancelled_timeout
+            )
+            await self.session.commit()
+            logger.info("order_cancelled_by_timeout", order_id=str(order_id))
+
+            # Отправка сообщения в product-service для возврата в сток
+            try:
+                await publish_reserve_release(order_id=order_id)
+            except Exception as e:
+                logger.error(
+                    "rabbitmq_publish_failed", order_id=str(order_id), error=str(e)
+                )
 
     # --- ПРИВАТНЫЕ МЕТОДЫ ДЛЯ CHECKOUT ---
 

@@ -68,3 +68,13 @@ class OrderRepository:
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_by_id(self, order_id: uuid.UUID) -> OrderModel | None:
+        """Находит заказ по ID."""
+        query = (
+            select(OrderModel)
+            .where(OrderModel.id == order_id)
+            .options(selectinload(OrderModel.items))
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()

@@ -36,3 +36,9 @@ cart_items_remove_queue = RabbitQueue(
     "cart.items.remove",
     durable=True,
 )
+
+# Очередь для возврата товаров в Product Service при таймауте
+reserve_release_queue = RabbitQueue(
+    "product.reserve.release",
+    durable=True,
+)

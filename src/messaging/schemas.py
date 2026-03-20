@@ -38,3 +38,15 @@ class CartItemsRemoveMessageSchema(BaseModel):
     items: list[CartItemRemoveSchema] = Field(
         ..., description="Список товаров для удаления"
     )
+
+
+class ReserveReleaseMessageSchema(BaseModel):
+    """Сообщение в очередь product.reserve.release - возвращает резерв товара на склад."""
+
+    message_id: uuid.UUID = Field(
+        default_factory=uuid.uuid4, description="ID сообщения для дедупликации"
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Время отправки"
+    )
+    order_id: uuid.UUID = Field(..., description="ID заказа")

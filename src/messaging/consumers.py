@@ -3,6 +3,8 @@ from faststream.rabbit import RabbitRouter
 
 from src.messaging.broker import timeout_check_queue, timeout_exchange
 from src.messaging.schemas import PaymentWaitMessageSchema
+from src.db.database import async_session_maker
+from src.services.order import OrderService
 
 logger = structlog.get_logger(__name__)
 
@@ -25,6 +27,8 @@ async def process_order_timeout(msg: PaymentWaitMessageSchema) -> None:
         message_id=str(msg.message_id),
     )
 
-    # Заглушка
+    async with async_session_maker() as session:
+        order_service = OrderService(session=session)
+        await order_service.process_timeout(order_id=msg.order_id)
 
-    logger.info("order_timeout_processed_stub", order_id=str(msg.order_id))
+    logger.info("order_timeout_processed", order_id=str(msg.order_id))
