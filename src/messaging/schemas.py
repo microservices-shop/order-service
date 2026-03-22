@@ -15,13 +15,13 @@ class PaymentWaitMessageSchema(BaseModel):
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Время отправки"
     )
-    order_id: uuid.UUID = Field(..., description="ID заказа")
+    order_id: uuid.UUID = Field(description="ID заказа")
 
 
 class CartItemRemoveSchema(BaseModel):
     """Схема товара для удаления из корзины."""
 
-    product_id: int = Field(..., description="ID товара")
+    product_id: int = Field(description="ID товара")
 
 
 class CartItemsRemoveMessageSchema(BaseModel):
@@ -33,11 +33,9 @@ class CartItemsRemoveMessageSchema(BaseModel):
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Время отправки"
     )
-    order_id: uuid.UUID = Field(..., description="ID заказа")
-    user_id: uuid.UUID = Field(..., description="ID пользователя")
-    items: list[CartItemRemoveSchema] = Field(
-        ..., description="Список товаров для удаления"
-    )
+    order_id: uuid.UUID = Field(description="ID заказа")
+    user_id: uuid.UUID = Field(description="ID пользователя")
+    items: list[CartItemRemoveSchema] = Field(description="Список товаров для удаления")
 
 
 class ReserveReleaseMessageSchema(BaseModel):
@@ -49,4 +47,4 @@ class ReserveReleaseMessageSchema(BaseModel):
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Время отправки"
     )
-    order_id: uuid.UUID = Field(..., description="ID заказа")
+    order_id: uuid.UUID = Field(description="ID заказа")

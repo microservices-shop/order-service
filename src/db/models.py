@@ -68,6 +68,7 @@ class OrderItemModel(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[int] = mapped_column(Integer, nullable=False)
     product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    product_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     order: Mapped["OrderModel"] = relationship("OrderModel", back_populates="items")
 

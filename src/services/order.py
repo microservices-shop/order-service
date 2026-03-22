@@ -234,6 +234,7 @@ class OrderService:
             OrderItemSnapshotSchema(
                 product_id=item.product_id,
                 product_name=item.name,
+                product_image=item.product_image,
                 unit_price=item.price,
                 quantity=item.quantity,
             )
