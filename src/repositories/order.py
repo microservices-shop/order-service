@@ -53,19 +53,25 @@ class OrderRepository:
                 quantity=item.quantity,
                 unit_price=item.unit_price,
                 product_name=item.product_name,
+                product_image=item.product_image,
             )
             self.session.add(order_item)
 
         await self.session.flush()
 
     async def get_by_user_id_and_order_id(
-        self, user_id: uuid.UUID, order_id: uuid.UUID
+        self, user_id: uuid.UUID, order_id: uuid.UUID, status: OrderStatus | None = None
     ) -> OrderModel | None:
+        """Находит заказ по ID пользователя и ID заказа с опциональной фильтрацией по статусу."""
         query = (
             select(OrderModel)
             .where(OrderModel.user_id == user_id, OrderModel.id == order_id)
             .options(selectinload(OrderModel.items))
         )
+
+        if status:
+            query = query.where(OrderModel.status == status)
+
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 

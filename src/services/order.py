@@ -22,6 +22,7 @@ from src.schemas.orders import (
     CheckoutResponseSchema,
     PayResponseSchema,
     OrderListResponseSchema,
+    OrderDetailResponseSchema,
 )
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
@@ -126,6 +127,19 @@ class OrderService:
         """Возвращает список завершённых заказов пользователя для страницы «Мои заказы»."""
         orders = await self.repo.get_completed_by_user_id(user_id=user_id)
         return [OrderListResponseSchema.model_validate(order) for order in orders]
+
+    async def get_order_details(
+        self, user_id: uuid.UUID, order_id: uuid.UUID
+    ) -> OrderDetailResponseSchema:
+        """Возвращает детали завершённого заказа пользователя."""
+        order = await self.repo.get_by_user_id_and_order_id(
+            user_id=user_id,
+            order_id=order_id,
+            status=OrderStatus.completed,
+        )
+        if not order:
+            raise OrderNotFoundException()
+        return OrderDetailResponseSchema.model_validate(order)
 
     async def process_timeout(self, order_id: uuid.UUID) -> None:
         """Обработка таймаута неоплаченного заказа.

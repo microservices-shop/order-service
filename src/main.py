@@ -29,12 +29,14 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await broker.connect()
-    await broker.start()
-
-    # Очередь order.payment.wait не имеет consumers,
-    # поэтому объявляем её руками (она настроена на DLX)
-    await broker.declare_queue(payment_wait_queue)
+    try:
+        await broker.connect()
+        await broker.start()
+        # Очередь order.payment.wait не имеет consumers,
+        # поэтому объявляем её руками (она настроена на DLX)
+        await broker.declare_queue(payment_wait_queue)
+    except Exception as e:
+        logger.warning("rabbitmq_broker_unavailable", error=str(e))
 
     # Явно создаём транспорт без прокси.
     transport = httpx.AsyncHTTPTransport(retries=1)

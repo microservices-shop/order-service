@@ -7,6 +7,7 @@ from src.schemas.orders import (
     CheckoutResponseSchema,
     PayResponseSchema,
     OrderListResponseSchema,
+    OrderDetailResponseSchema,
 )
 
 router = APIRouter(prefix="/orders")
@@ -80,3 +81,27 @@ async def get_orders(
     Если заказов нет - возвращает пустой список.
     """
     return await service.get_orders(user_id=user_id)
+
+
+@router.get(
+    "/{order_id}",
+    response_model=OrderDetailResponseSchema,
+    summary="Детали заказа",
+    description="Возвращает детали завершённого заказа с полной информацией о товарах.",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Заказ не найден, не принадлежит пользователю или не завершён"
+        },
+    },
+)
+async def get_order_details(
+    user_id: UserIdDep,
+    order_id: uuid.UUID,
+    service: OrderServiceDep,
+) -> OrderDetailResponseSchema:
+    """Детали завершённого заказа.
+
+    Возвращает 404, если заказ не найден, принадлежит другому
+    пользователю или ещё не в статусе `completed`.
+    """
+    return await service.get_order_details(user_id=user_id, order_id=order_id)
