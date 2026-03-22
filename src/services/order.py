@@ -18,7 +18,11 @@ from src.schemas.internal import (
     CartItemSelectedResponseSchema,
     ProductReserveResponseSchema,
 )
-from src.schemas.orders import CheckoutResponseSchema, PayResponseSchema
+from src.schemas.orders import (
+    CheckoutResponseSchema,
+    PayResponseSchema,
+    OrderListResponseSchema,
+)
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
 from src.messaging.publisher import (
@@ -117,6 +121,11 @@ class OrderService:
             logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(e))
 
         return PayResponseSchema(status=OrderStatus.completed)
+
+    async def get_orders(self, user_id: uuid.UUID) -> list[OrderListResponseSchema]:
+        """Возвращает список завершённых заказов пользователя для страницы «Мои заказы»."""
+        orders = await self.repo.get_completed_by_user_id(user_id=user_id)
+        return [OrderListResponseSchema.model_validate(order) for order in orders]
 
     async def process_timeout(self, order_id: uuid.UUID) -> None:
         """Обработка таймаута неоплаченного заказа.
@@ -234,7 +243,7 @@ class OrderService:
             OrderItemSnapshotSchema(
                 product_id=item.product_id,
                 product_name=item.name,
-                product_image=item.product_image,
+                product_image=item.image_url,
                 unit_price=item.price,
                 quantity=item.quantity,
             )

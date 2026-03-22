@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.db.models import OrderModel, OrderItemModel
+from src.db.models import OrderModel, OrderItemModel, OrderStatus
 from src.schemas.internal import OrderItemSnapshotSchema
 
 
@@ -68,6 +68,20 @@ class OrderRepository:
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_completed_by_user_id(self, user_id: uuid.UUID) -> list[OrderModel]:
+        """Возвращает завершённые заказы пользователя (новые первыми)."""
+        query = (
+            select(OrderModel)
+            .where(
+                OrderModel.user_id == user_id,
+                OrderModel.status == OrderStatus.completed,
+            )
+            .options(selectinload(OrderModel.items))
+            .order_by(OrderModel.created_at.desc())
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
     async def get_by_id(self, order_id: uuid.UUID) -> OrderModel | None:
         """Находит заказ по ID."""

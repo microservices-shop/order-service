@@ -31,7 +31,7 @@ class ProductReserveResponseSchema(BaseModel):
     """Актуальные данные товара после резервирования (снапшот)."""
 
     product_id: int = Field(description="ID товара")
-    product_image: str = Field(description="URL фото товара")
+    image_url: str | None = Field(default=None, description="URL фото товара")
     name: str = Field(description="Название товара")
     price: int = Field(description="Цена в копейках на момент резерва")
     quantity: int = Field(description="Зарезервированное количество")
@@ -44,6 +44,6 @@ class OrderItemSnapshotSchema(BaseModel):
 
     product_id: int = Field(description="ID товара")
     product_name: str = Field(description="Название товара")
-    product_image: str = Field(description="URL фото товара")
+    product_image: str | None = Field(default=None, description="URL фото товара")
     unit_price: int = Field(description="Цена за ед. товара")
     quantity: int = Field(description="Количество")

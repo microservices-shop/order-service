@@ -3,7 +3,11 @@ import uuid
 from fastapi import APIRouter, status
 
 from src.api.dependencies import UserIdDep, IdempotencyKeyDep, OrderServiceDep
-from src.schemas.orders import CheckoutResponseSchema, PayResponseSchema
+from src.schemas.orders import (
+    CheckoutResponseSchema,
+    PayResponseSchema,
+    OrderListResponseSchema,
+)
 
 router = APIRouter(prefix="/orders")
 
@@ -58,3 +62,21 @@ async def pay(
 ) -> PayResponseSchema:
     """Оплата заказа и очистка корзины."""
     return await service.pay(user_id=user_id, order_id=order_id)
+
+
+@router.get(
+    "",
+    response_model=list[OrderListResponseSchema],
+    status_code=status.HTTP_200_OK,
+    summary="Список заказов",
+    description="Возвращает завершённые заказы пользователя, отсортированные от новых к старым.",
+)
+async def get_orders(
+    user_id: UserIdDep,
+    service: OrderServiceDep,
+) -> list[OrderListResponseSchema]:
+    """Список завершённых заказов для страницы «Мои заказы».
+
+    Если заказов нет - возвращает пустой список.
+    """
+    return await service.get_orders(user_id=user_id)
