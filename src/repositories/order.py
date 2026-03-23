@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,8 +75,20 @@ class OrderRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_completed_by_user_id(self, user_id: uuid.UUID) -> list[OrderModel]:
+    async def get_completed_by_user_id(
+        self, user_id: uuid.UUID, page: int, page_size: int
+    ) -> tuple[list[OrderModel], int]:
         """Возвращает завершённые заказы пользователя (новые первыми)."""
+        count_query = select(func.count(OrderModel.id)).where(
+            OrderModel.user_id == user_id,
+            OrderModel.status == OrderStatus.completed,
+        )
+        total_result = await self.session.execute(count_query)
+        total_orders = total_result.scalar_one()
+
+        offset = (page - 1) * page_size
+        limit = page_size
+
         query = (
             select(OrderModel)
             .where(
@@ -85,9 +97,13 @@ class OrderRepository:
             )
             .options(selectinload(OrderModel.items))
             .order_by(OrderModel.created_at.desc())
+            .offset(offset)
+            .limit(limit)
         )
         result = await self.session.execute(query)
-        return list(result.scalars().all())
+        orders = list(result.scalars().all())
+
+        return orders, total_orders
 
     async def get_by_id(self, order_id: uuid.UUID) -> OrderModel | None:
         """Находит заказ по ID."""

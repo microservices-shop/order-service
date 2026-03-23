@@ -1,3 +1,5 @@
+import math
+
 import structlog
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,7 @@ from src.schemas.orders import (
     PayResponseSchema,
     OrderListResponseSchema,
     OrderDetailResponseSchema,
+    PaginatedOrdersResponseSchema,
 )
 from src.services.cart_client import CartClient
 from src.services.product_client import ProductClient
@@ -123,10 +126,22 @@ class OrderService:
 
         return PayResponseSchema(status=OrderStatus.completed)
 
-    async def get_orders(self, user_id: uuid.UUID) -> list[OrderListResponseSchema]:
+    async def get_orders(
+        self, user_id: uuid.UUID, page: int, page_size: int
+    ) -> PaginatedOrdersResponseSchema:
         """Возвращает список завершённых заказов пользователя для страницы «Мои заказы»."""
-        orders = await self.repo.get_completed_by_user_id(user_id=user_id)
-        return [OrderListResponseSchema.model_validate(order) for order in orders]
+        orders, total_orders = await self.repo.get_completed_by_user_id(
+            user_id=user_id, page=page, page_size=page_size
+        )
+        pages = math.ceil(total_orders / page_size)
+
+        return PaginatedOrdersResponseSchema(
+            items=[OrderListResponseSchema.model_validate(order) for order in orders],
+            total_orders=total_orders,
+            page=page,
+            page_size=page_size,
+            pages=pages,
+        )
 
     async def get_order_details(
         self, user_id: uuid.UUID, order_id: uuid.UUID

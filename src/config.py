@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     ORDER_PAYMENT_TIMEOUT_MS: int = 900_000
 
+    DEFAULT_PAGE_SIZE: int = 20
+    MAX_PAGE_SIZE: int = 100
+
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     @property

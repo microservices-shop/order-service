@@ -72,6 +72,24 @@ class OrderDetailResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaginatedOrdersResponseSchema(BaseModel):
+    """Пагинированный ответ для страницы «Мои заказы» (/orders).
+
+    Содержит массив заказов текущей страницы и метаданные
+    для построения цифровой пагинации на фронтенде.
+    """
+
+    total_orders: int = Field(
+        description="Общее количество завершённых заказов", examples=[23]
+    )
+    page: int = Field(description="Номер текущей страницы", examples=[1])
+    page_size: int = Field(description="Количество заказов на странице", examples=[10])
+    pages: int = Field(description="Общее количество страниц", examples=[3])
+    items: list[OrderListResponseSchema] = Field(
+        description="Заказы на текущей странице"
+    )
+
+
 class CheckoutResponseSchema(BaseModel):
     """Ответ на успешное оформление заказа."""
 
