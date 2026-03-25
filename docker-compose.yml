@@ -1,0 +1,65 @@
+services:
+  migrate:
+    build: .
+    container_name: order_migrate
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=order_db
+      - DB_PORT=5432
+    command: [ "alembic", "upgrade", "head" ]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - shop_network
+
+  app:
+    build: .
+    container_name: order_app
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=order_db
+      - DB_PORT=5432
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - CART_SERVICE_URL=http://cart_app:8003
+      - PRODUCT_SERVICE_URL=http://product_app:8002
+    ports:
+      - "8004:8004"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - shop_network
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    container_name: order_db
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "5436:5432"
+    volumes:
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shop_network
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
+
+networks:
+  shop_network:
+    external: true

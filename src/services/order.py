@@ -83,10 +83,16 @@ class OrderService:
         try:
             await publish_payment_wait(order_id=order.id)
         except Exception as e:
-            logger.error("rabbitmq_publish_failed", order_id=order.id, error=str(e))
-            # НЕ выбрасываем ошибку дальше. Заказ уже сохранен в БД
-            # Пользователь сможет его оплатить
-            # TODO: Реализовать паттерн Transactional Outbox для надежной доставки сообщений в RabbitMQ
+            logger.error("payment_wait_publish_failed", order_id=order.id, error=str(e))
+            await self.repo.update(
+                order_id=order.id, status=OrderStatus.cancelled_timeout
+            )
+            await self.session.commit()
+            try:
+                await publish_reserve_release(order_id=order.id)
+            except Exception:
+                logger.error("reserve_release_also_failed", order_id=order.id)
+            raise
 
         return CheckoutResponseSchema(
             order_id=order.id,

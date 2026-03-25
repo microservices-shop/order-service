@@ -8,7 +8,7 @@ import httpx
 
 from src.config import settings
 from src.logger import setup_logging, get_logger
-from src.messaging.broker import broker, payment_wait_queue
+from src.messaging.broker import broker, connect_broker
 from src.messaging.consumers import router as messaging_router
 from src.middleware.request_logger import RequestLoggingMiddleware
 from src.services.cart_client import CartClient
@@ -29,14 +29,7 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        await broker.connect()
-        await broker.start()
-        # Очередь order.payment.wait не имеет consumers,
-        # поэтому объявляем её руками (она настроена на DLX)
-        await broker.declare_queue(payment_wait_queue)
-    except Exception as e:
-        logger.warning("rabbitmq_broker_unavailable", error=str(e))
+    await connect_broker()
 
     # Явно создаём транспорт без прокси.
     transport = httpx.AsyncHTTPTransport(retries=1)

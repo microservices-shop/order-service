@@ -23,6 +23,25 @@ _MAX_RETRIES = 3
 _RETRY_BACKOFF_BASE = 0.5
 
 
+async def _publish_with_retry(message: dict, queue, *, context: str) -> None:
+    """Публикует сообщение с retry и экспоненциальным backoff."""
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            await broker.publish(message=message, queue=queue)
+            return
+        except Exception as exc:
+            if attempt == _MAX_RETRIES:
+                raise
+            logger.warning(
+                "rabbitmq_publish_retry",
+                context=context,
+                attempt=attempt,
+                max_retries=_MAX_RETRIES,
+                error=str(exc),
+            )
+            await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
+
+
 async def publish_payment_wait(order_id: uuid.UUID) -> None:
     """Публикует сообщение в очередь order.payment.wait.
 
@@ -30,26 +49,11 @@ async def publish_payment_wait(order_id: uuid.UUID) -> None:
     через DLX попадает в order.timeout.check.
     """
     message = PaymentWaitMessageSchema(order_id=order_id)
-
-    for attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            await broker.publish(
-                message=message,
-                queue=payment_wait_queue,
-            )
-            break
-        except Exception as exc:
-            if attempt == _MAX_RETRIES:
-                raise
-            logger.warning(
-                "rabbitmq_publish_retry",
-                order_id=str(order_id),
-                attempt=attempt,
-                max_retries=_MAX_RETRIES,
-                error=str(exc),
-            )
-            await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
-
+    await _publish_with_retry(
+        message.model_dump(mode="json"),
+        payment_wait_queue,
+        context=f"payment_wait:{order_id}",
+    )
     logger.info(
         "payment_wait_published",
         order_id=str(order_id),
@@ -66,26 +70,11 @@ async def publish_cart_items_remove(
         user_id=user_id,
         items=items,
     )
-
-    for attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            await broker.publish(
-                message=message,
-                queue=cart_items_remove_queue,
-            )
-            break
-        except Exception as exc:
-            if attempt == _MAX_RETRIES:
-                raise
-            logger.warning(
-                "rabbitmq_publish_retry_cart_remove",
-                order_id=str(order_id),
-                attempt=attempt,
-                max_retries=_MAX_RETRIES,
-                error=str(exc),
-            )
-            await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
-
+    await _publish_with_retry(
+        message.model_dump(mode="json"),
+        cart_items_remove_queue,
+        context=f"cart_remove:{order_id}",
+    )
     logger.info(
         "cart_items_remove_published",
         order_id=str(order_id),
@@ -97,26 +86,11 @@ async def publish_cart_items_remove(
 async def publish_reserve_release(order_id: uuid.UUID) -> None:
     """Публикует сообщение в очередь product.reserve.release."""
     message = ReserveReleaseMessageSchema(order_id=order_id)
-
-    for attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            await broker.publish(
-                message=message,
-                queue=reserve_release_queue,
-            )
-            break
-        except Exception as exc:
-            if attempt == _MAX_RETRIES:
-                raise
-            logger.warning(
-                "rabbitmq_publish_retry_reserve_release",
-                order_id=str(order_id),
-                attempt=attempt,
-                max_retries=_MAX_RETRIES,
-                error=str(exc),
-            )
-            await asyncio.sleep(_RETRY_BACKOFF_BASE * (2 ** (attempt - 1)))
-
+    await _publish_with_retry(
+        message.model_dump(mode="json"),
+        reserve_release_queue,
+        context=f"reserve_release:{order_id}",
+    )
     logger.info(
         "reserve_release_published",
         order_id=str(order_id),
