@@ -19,7 +19,7 @@ class OrderItemPreviewSchema(BaseModel):
 
 
 class OrderItemResponseSchema(BaseModel):
-    """Детальный снапшот товара на странице «Детали заказа» (/orders/{id}).
+    """Детальный снапшот товара.
 
     Отображается как карточка с фото, названием, ценой и количеством.
     """
@@ -96,6 +96,9 @@ class CheckoutResponseSchema(BaseModel):
     order_id: uuid.UUID = Field(description="ID созданного заказа")
     status: str = Field(description="Статус заказа", examples=["awaiting_payment"])
     total_price: int = Field(description="Сумма заказа в копейках", examples=[250000])
+    items: list[OrderItemResponseSchema] = Field(
+        default_factory=list, description="Товары в заказе (снапшоты)"
+    )
 
 
 class PayResponseSchema(BaseModel):

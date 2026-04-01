@@ -22,6 +22,7 @@ from src.schemas.internal import (
 )
 from src.schemas.orders import (
     CheckoutResponseSchema,
+    OrderItemResponseSchema,
     PayResponseSchema,
     OrderListResponseSchema,
     OrderDetailResponseSchema,
@@ -98,6 +99,16 @@ class OrderService:
             order_id=order.id,
             status=OrderStatus.awaiting_payment,
             total_price=total_price,
+            items=[
+                OrderItemResponseSchema(
+                    product_id=item.product_id,
+                    product_name=item.name,
+                    product_image=item.image_url,
+                    unit_price=item.price,
+                    quantity=item.quantity,
+                )
+                for item in product_items
+            ],
         )
 
     async def pay(self, user_id: uuid.UUID, order_id: uuid.UUID) -> PayResponseSchema:
