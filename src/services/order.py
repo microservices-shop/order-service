@@ -278,7 +278,7 @@ class OrderService:
                 order_id=order_id, status=OrderStatus.failed_out_of_stock
             )
             await self.session.commit()
-            logger.error("product_out_of_stock", order_id=order_id)
+            logger.warning("product_out_of_stock", order_id=order_id)
             raise
 
     async def _process_order_items(

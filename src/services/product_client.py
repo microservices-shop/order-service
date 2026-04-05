@@ -47,7 +47,8 @@ class ProductClient:
 
                 if response.status_code == httpx.codes.BAD_REQUEST:
                     # Товара нет в наличии, ошибка 400
-                    raise OutOfStockException()
+                    error_detail = response.json().get("detail", "Item out of stock")
+                    raise OutOfStockException(detail=error_detail)
 
                 response.raise_for_status()
                 return [
