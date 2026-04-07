@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, UTC
 
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from src.db.models import OrderModel, OrderItemModel, OrderStatus
 from src.schemas.internal import OrderItemSnapshotSchema
@@ -114,3 +115,20 @@ class OrderRepository:
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_last_unpaid_order(self, user_id: uuid.UUID) -> OrderModel | None:
+        """Находит последний неоплаченный заказ пользователя с истекающим сроком."""
+
+        query = (
+            select(OrderModel)
+            .where(
+                OrderModel.user_id == user_id,
+                OrderModel.status == OrderStatus.awaiting_payment,
+                OrderModel.expires_at > datetime.now(UTC),
+            )
+            .options(joinedload(OrderModel.items))
+            .order_by(OrderModel.created_at.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(query)
+        return result.unique().scalar_one_or_none()

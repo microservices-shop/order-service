@@ -44,6 +44,9 @@ class OrderModel(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
 
     items: Mapped[list["OrderItemModel"]] = relationship(
         "OrderItemModel", back_populates="order", cascade="all, delete-orphan"

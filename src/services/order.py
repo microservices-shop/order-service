@@ -2,9 +2,11 @@ import math
 
 import structlog
 import uuid
+from datetime import datetime, timedelta, UTC
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
+from src.config import settings
 from src.db.models import OrderStatus, OrderModel
 from src.exceptions import (
     OrderConflictException,
@@ -59,6 +61,50 @@ class OrderService:
         self, user_id: uuid.UUID, idempotency_key: uuid.UUID
     ) -> CheckoutResponseSchema:
         """Начало оформления заказа с защитой от двойных кликов (идемпотентность)."""
+
+        # Проверка на существующий в точности такой же неоплаченный заказ
+        existing_order = await self.repo.get_last_unpaid_order(user_id)
+        if existing_order:
+            cart_items = await self.cart_client.get_selected_items(user_id)
+            if self._is_same_cart_composition(existing_order.items, cart_items):
+                # Продлить таймер
+                await self.repo.update(
+                    order_id=existing_order.id,
+                    expires_at=datetime.now(UTC)
+                    + timedelta(milliseconds=settings.ORDER_PAYMENT_TIMEOUT_MS),
+                )
+                await self.session.commit()
+
+                # Опубликовать новое сообщение с полным TTL
+                try:
+                    await publish_payment_wait(order_id=existing_order.id)
+                except Exception as e:
+                    logger.error(
+                        "smart_cart_payment_wait_publish_failed",
+                        order_id=existing_order.id,
+                        error=str(e),
+                    )
+
+                logger.info(
+                    "smart_cart_reused_order",
+                    order_id=existing_order.id,
+                    user_id=user_id,
+                )
+                return CheckoutResponseSchema(
+                    order_id=existing_order.id,
+                    status=existing_order.status,
+                    total_price=existing_order.total_price,
+                    items=[
+                        OrderItemResponseSchema(
+                            product_id=item.product_id,
+                            product_name=item.product_name,
+                            product_image=item.product_image,
+                            unit_price=item.unit_price,
+                            quantity=item.quantity,
+                        )
+                        for item in existing_order.items
+                    ],
+                )
 
         # Инициализация заказа c idempotency_key и флагом "reserving"
         order, existing_order_response = await self._create_order(
@@ -182,20 +228,30 @@ class OrderService:
             logger.warning("timeout_order_not_found", order_id=str(order_id))
             return
 
-        # Если заказ уже оплачен, то таймаут игнорируется (возвращается ACK)
+        # Если заказ уже оплачен, то таймаут игнорируется
         if order.status == OrderStatus.completed:
             logger.info("timeout_ignored_already_completed", order_id=str(order_id))
             return
 
-        # Если заказ еще не оплачен (или висит в статусе reserving), отменяем
+        # Если заказ еще не оплачен (или висит в статусе reserving)
         if order.status in (OrderStatus.awaiting_payment, OrderStatus.reserving):
+            # Если таймер был продлен, то игнорируем старое сообщение
+            if order.expires_at and datetime.now(UTC) < order.expires_at:
+                logger.info(
+                    "timeout_ignored_timer_extended",
+                    order_id=str(order_id),
+                    expires_at=order.expires_at.isoformat(),
+                )
+                return
+
+            # Таймер истек - отменяем заказ
             await self.repo.update(
                 order_id=order_id, status=OrderStatus.cancelled_timeout
             )
             await self.session.commit()
             logger.info("order_cancelled_by_timeout", order_id=str(order_id))
 
-            # Отправка сообщения в product-service для возврата в сток
+            # Возврат товаров в stock
             try:
                 await publish_reserve_release(order_id=order_id)
             except Exception as e:
@@ -204,6 +260,20 @@ class OrderService:
                 )
 
     # --- ПРИВАТНЫЕ МЕТОДЫ ДЛЯ CHECKOUT ---
+
+    def _is_same_cart_composition(
+        self,
+        existing_items: list,
+        cart_items: list[CartItemSelectedResponseSchema],
+    ) -> bool:
+        """Сравнивает состав существующего заказа с текущей корзиной."""
+        if len(existing_items) != len(cart_items):
+            return False
+
+        existing_dict = {item.product_id: item.quantity for item in existing_items}
+        cart_dict = {item.product_id: item.quantity for item in cart_items}
+
+        return existing_dict == cart_dict
 
     async def _create_order(
         self, user_id: uuid.UUID, idempotency_key: uuid.UUID
@@ -302,6 +372,8 @@ class OrderService:
             order_id=order_id,
             status=OrderStatus.awaiting_payment,
             total_price=total_price,
+            expires_at=datetime.now(UTC)
+            + timedelta(milliseconds=settings.ORDER_PAYMENT_TIMEOUT_MS),
         )
 
         # Сохранить снапшоты товаров
