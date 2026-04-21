@@ -21,6 +21,12 @@ router = APIRouter(prefix="/orders")
     summary="Оформить заказ",
     description="Создает новый заказ.",
     responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Пустая корзина, нет товара на складе, или невалидный Idempotency-Key"
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Не передан или невалиден X-User-Id"
+        },
         status.HTTP_409_CONFLICT: {
             "description": "Заказ с таким ключом уже в процессе создания"
         },
@@ -50,9 +56,14 @@ async def checkout(
     summary="Оплатить заказ",
     description="Переводит заказ в статус 'completed' и очищает корзину пользователя.",
     responses={
-        status.HTTP_404_NOT_FOUND: {"description": "Заказ не найден"},
         status.HTTP_400_BAD_REQUEST: {
-            "description": "Некорректный статус заказа для оплаты (отменен или уже оплачен)"
+            "description": "Некорректный статус заказа для оплаты (отменен или ошибка)"
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Не передан или невалиден X-User-Id"
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Заказ не найден или принадлежит чужому пользователю"
         },
         status.HTTP_409_CONFLICT: {"description": "Заказ еще в процессе создания"},
     },
@@ -72,6 +83,11 @@ async def pay(
     status_code=status.HTTP_200_OK,
     summary="Список заказов",
     description="Возвращает завершённые заказы пользователя, отсортированные от новых к старым.",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Не передан или невалиден X-User-Id"
+        },
+    },
 )
 async def get_orders(
     user_id: UserIdDep,
@@ -97,6 +113,9 @@ async def get_orders(
     summary="Детали заказа",
     description="Возвращает детали завершённого заказа с полной информацией о товарах.",
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Не передан или невалиден X-User-Id"
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Заказ не найден, не принадлежит пользователю или не завершён"
         },

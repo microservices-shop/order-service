@@ -172,6 +172,12 @@ class OrderService:
                 f"Cannot pay order in status {order.status.value}"
             )
 
+        if not order.items:
+            raise InvalidOrderStatusException("Cannot pay for an order without items")
+
+        if order.expires_at and order.expires_at < datetime.now(UTC):
+            raise InvalidOrderStatusException("Order payment time expired")
+
         # Фиктивная оплата
         await self.repo.update(order_id=order_id, status=OrderStatus.completed)
         await self.session.commit()
@@ -312,6 +318,16 @@ class OrderService:
                 order_id=existing_order.id,
                 status=existing_order.status,
                 total_price=existing_order.total_price,
+                items=[
+                    OrderItemResponseSchema(
+                        product_id=item.product_id,
+                        product_name=item.product_name,
+                        product_image=item.product_image,
+                        unit_price=item.unit_price,
+                        quantity=item.quantity,
+                    )
+                    for item in existing_order.items
+                ],
             )
 
     async def _get_cart_items(

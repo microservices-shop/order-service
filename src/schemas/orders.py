@@ -105,7 +105,6 @@ class PaginatedOrdersResponseSchema(BaseModel):
     )
     pages: int = Field(description="Общее количество страниц", examples=[3])
     items: list[OrderListResponseSchema] = Field(
-        min_length=1,
         description="Заказы на текущей странице",
     )
 
